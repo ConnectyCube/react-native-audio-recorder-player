@@ -19,6 +19,8 @@ class AudioRecorderPlayer {
   static _playerSubscription;
   static _recordInterval;
 
+  requestRecordPermissionIOS = () => RNAudioRecorderPlayer.requestRecordPermission()
+  
   mmss = (secs) => {
     let minutes = Math.floor(secs / 60);
     secs = secs % 60;
