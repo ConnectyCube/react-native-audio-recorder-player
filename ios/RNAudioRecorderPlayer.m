@@ -102,6 +102,31 @@ RCT_EXPORT_MODULE();
   return @[@"rn-recordback", @"rn-playback"];
 }
 
+RCT_EXPORT_METHOD(requestRecordPermission:(RCTPromiseResolveBlock)resolve
+                  reject:(RCTPromiseRejectBlock)reject) {
+    NSLog(@"[requestRecordPermission]");
+    switch ([[AVAudioSession sharedInstance] recordPermission]) {
+        case AVAudioSessionRecordPermissionGranted:
+            resolve(@"Granted");
+            break;
+        case AVAudioSessionRecordPermissionDenied:
+            reject(@"[requestRecordPermission]", @"Denied", nil);
+            break;
+        case AVAudioSessionRecordPermissionUndetermined: {
+            [[AVAudioSession sharedInstance] requestRecordPermission:^(BOOL granted) {
+                if (granted) {
+                    resolve(@"Granted");
+                } else {
+                    reject(@"[requestRecordPermission]", @"Denied", nil);
+                }
+            }];
+            break;
+        }
+        default:
+            break;
+    }
+}
+
 RCT_EXPORT_METHOD(setSubscriptionDuration:(double)duration
                   resolve:(RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject) {
@@ -155,6 +180,7 @@ RCT_EXPORT_METHOD(stopRecorder:(BOOL) cancel
                   resolve: (RCTPromiseResolveBlock)resolve
                   reject:(RCTPromiseRejectBlock)reject) {
     if (audioRecorder) {
+        double duration = audioRecorder.currentTime;
         [audioRecorder stop];
         if (recordTimer != nil) {
             [recordTimer invalidate];
@@ -163,9 +189,32 @@ RCT_EXPORT_METHOD(stopRecorder:(BOOL) cancel
 
         AVAudioSession *audioSession = [AVAudioSession sharedInstance];
         [audioSession setActive:NO error:nil];
-
-        NSString *filePath = audioFileURL.absoluteString;
-        resolve(filePath);
+        
+        NSString *filePath = audioFileURL.path;
+        if (cancel) {
+            NSLog(@"Cnacel recod path: %@", filePath);
+            NSError *error;
+            if ([[NSFileManager defaultManager] isDeletableFileAtPath:filePath]) {
+                BOOL success = [[NSFileManager defaultManager] removeItemAtPath:filePath error:&error];
+                if (!success) {
+                    NSLog(@"Error removing file at path: %@", error.localizedDescription);
+                }
+            } else {
+                NSLog(@"Can't remove file at path: %@", error.localizedDescription);
+            }
+            resolve(@"[stopRecorder] cancel record file");
+        } else{
+            unsigned long long fileSize = [[[NSFileManager defaultManager] attributesOfItemAtPath:filePath error:nil] fileSize];
+            NSLog(@"FileSize %d", fileSize);
+            NSLog(@"duration %f", duration);
+            NSDictionary* result = @{
+                @"path": audioFileURL.absoluteString,
+                @"size": @(fileSize),
+                @"duration": @(duration * 1000)
+            };
+            NSLog(@"Stop audio result %@", result);
+            resolve(result);
+        }
     } else {
         reject(@"audioRecorder record", @"audioRecorder is not set", nil);
     }
@@ -185,39 +234,31 @@ RCT_EXPORT_METHOD(startPlayer:(NSString*)path
     NSError *error;
     if ([[path substringToIndex:4] isEqualToString:@"http"]) {
         audioFileURL = [NSURL URLWithString:path];
-
+        
         NSURLSessionDataTask *downloadTask = [[NSURLSession sharedSession]
         dataTaskWithURL:audioFileURL completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-            NSArray  *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-            NSString  *documentsDirectory = [paths objectAtIndex:0];
-            NSString  *fileSavePath = [NSString stringWithFormat:@"%@/%@", documentsDirectory,@"sound.m4a"];
-            [data writeToFile:fileSavePath atomically:YES];
-            if (!audioPlayer) {
-                NSLog(@"Path %@",fileSavePath);
-                NSURL* fileSavePathAudio = [NSURL fileURLWithPath: [fileSavePath stringByReplacingOccurrencesOfString: @"file://" withString:@""]];
-                NSLog(@"Path %@", fileSavePathAudio);
-                audioPlayer = [[AVAudioPlayer alloc] initWithContentsOfURL:fileSavePathAudio error:&error];
-                audioPlayer.delegate = self;
-            }
-
-            // Able to play in silent mode
-            [[AVAudioSession sharedInstance]
-                setCategory: AVAudioSessionCategoryPlayback
-                error: &error];
-            // Able to play in background
-            [[AVAudioSession sharedInstance] setActive: YES error: nil];
-            [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
-            [audioPlayer play];
-            if (skeepTo > 0) {
-                audioPlayer.currentTime = skeepTo;
-            }
-            NSLog(@"[play dowload] [error] %@", error);
-            NSLog(@"[play dowload] [player] %@", audioPlayer);
-            [self startPlayerTimer];
-            NSString *filePath = audioFileURL.absoluteString;
-            resolve(filePath);
+              // NSData *data = [NSData dataWithContentsOfURL:audioFileURL];
+              if (!audioPlayer) {
+                  audioPlayer = [[AVAudioPlayer alloc] initWithData:data error:&error];
+                  audioPlayer.delegate = self;
+              }
+              
+              // Able to play in silent mode
+              [[AVAudioSession sharedInstance]
+               setCategory: AVAudioSessionCategoryPlayback
+               error: &error];
+              // Able to play in background
+              [[AVAudioSession sharedInstance] setActive: YES error: nil];
+              [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
+                if (skeepTo > 0) {
+                    audioPlayer.currentTime = skeepTo;
+                }
+              [audioPlayer play];
+              [self startPlayerTimer];
+              NSString *filePath = audioFileURL.absoluteString;
+              resolve(filePath);
         }];
-
+        
         [downloadTask resume];
     } else {
         if ([path isEqualToString:@"DEFAULT"]) {
@@ -243,10 +284,10 @@ RCT_EXPORT_METHOD(startPlayer:(NSString*)path
         NSLog(@"Error session %@",errorSession);
         NSLog(@"[Play url] %@", audioFileURL);
         NSLog(@"[Play url] position %f", skeepTo);
-        [audioPlayer play];
         if (skeepTo > 0) {
             audioPlayer.currentTime = skeepTo;
         }
+        [audioPlayer play];
         [self startPlayerTimer];
 
         NSString *filePath = audioFileURL.absoluteString;
