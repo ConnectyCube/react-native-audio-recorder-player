@@ -9,7 +9,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
-import android.support.v4.app.ActivityCompat;
+import androidx.core.app.ActivityCompat;
 import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
@@ -57,7 +57,7 @@ public class RNAudioRecorderPlayerModule extends ReactContextBaseJavaModule impl
 
   @ReactMethod
   public void startRecorder(final String path, Promise promise) {
-    FILE_LOCATION = path.equals("DEFAULT") ? ("/sdcard/" + System.currentTimeMillis() + ".mp4") : path;
+    FILE_LOCATION = path.equals("DEFAULT") ? ("/sdcard/" + System.currentTimeMillis() + ".m4a") : path;
     try {
       if (
               Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
@@ -91,8 +91,8 @@ public class RNAudioRecorderPlayerModule extends ReactContextBaseJavaModule impl
 
     mediaRecorder = new MediaRecorder();
     mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-    mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-    mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
+    mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.AAC_ADTS);
+    mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
     mediaRecorder.setOutputFile(FILE_LOCATION);
 
     try {
@@ -151,7 +151,6 @@ public class RNAudioRecorderPlayerModule extends ReactContextBaseJavaModule impl
       WritableMap stopRecordingResultObject = Arguments.createMap();
       stopRecordingResultObject.putString("size", audioFileSize);
       stopRecordingResultObject.putString("path", "file://" + FILE_LOCATION);
-      stopRecordingResultObject.putString("type", "audio/mpeg");
       stopRecordingResultObject.putDouble("duration", recordDuration);
 
       FILE_LOCATION = null;
