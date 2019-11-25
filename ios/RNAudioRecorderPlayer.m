@@ -151,7 +151,7 @@ RCT_EXPORT_METHOD(startRecorder:(NSString*)path
 
   NSDictionary *audioSettings = [NSDictionary dictionaryWithObjectsAndKeys:
                                  [NSNumber numberWithFloat:44100],AVSampleRateKey,
-                                 [NSNumber numberWithInt: kAudioFormatAppleLossless],AVFormatIDKey,
+                                 [NSNumber numberWithInt: kAudioFormatMPEG4AAC],AVFormatIDKey,
                                  [NSNumber numberWithInt: 2],AVNumberOfChannelsKey,
                                  [NSNumber numberWithInt:AVAudioQualityMedium],AVEncoderAudioQualityKey,nil];
 
